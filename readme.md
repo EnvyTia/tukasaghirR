@@ -42,6 +42,12 @@ libboost-all-dev libopenmpi-dev openmpi-bin \
 libsqlite3-dev libgtk-3-dev ffmpeg
 
 pip3 install numpy tensorflow flask
+
+cd ns-3
+mkdir external
+cd external
+git clone https://github.com/nlohmann/json.git
+
 ```
 forward port 9000 dari windows ke wsl:
 ```sh
@@ -73,3 +79,64 @@ telesurgery-sim/
 
 ## Alur:
 
+on BS
+```sh
+wsl --install -d Ubuntu-22.04
+sudo apt update && sudo apt upgrade -y
+sudo apt install git cmake g++ python3-dev python3-pip qt5-default \
+libboost-all-dev libopenmpi-dev openmpi-bin \
+libsqlite3-dev libgtk-3-dev ffmpeg
+pip3 install numpy tensorflow flask
+
+# run the one in base station
+cd ~
+git clone https://gitlab.com/nsnam/ns-3-dev.git ns-3
+cd ns-3
+./ns3 configure --enable-examples --enable-tests
+./ns3 build
+
+mkdir external && cd external
+git clone https://github.com/nlohmann/json.git
+
+cd ~/ns-3/scratch
+
+nano hnns-scheduler-sim.cc
+
+# paste
+
+cd ~/ns-3
+./ns3 build
+./ns3 run scratch/hnns-scheduler-sim
+
+# buka wscript di root
+def configure(conf):
+    conf.env.append_value('CXXFLAGS', '-std=c++17')
+    conf.env.append_value('CXXFLAGS', '-Iexternal/json/include')
+
+```
+
+schedular
+```sh
+cd ~/ns-3/src/lte/model
+cp pf-ff-mac-scheduler.cc hnns-mac-scheduler.cc
+cp pf-ff-mac-scheduler.h hnns-mac-scheduler.h
+
+ubah class PfFfMacScheduler : public FfMacScheduler
+jadi class HnnsMacScheduler : public FfMacScheduler
+
+```
+
+```sh 
+# override fungsi
+void DoSchedDlTriggerReq (const FfMacSchedSapProvider::SchedDlTriggerReqParameters& params);
+# Ini fungsi utama NS-3 yang setiap 1 TTI (Transmission Time Interval) memutuskan RB allocation.
+
+#copy scheduler bawaan
+cd ~/ns-3/src/lte/model
+cp pf-ff-mac-scheduler.cc hnns-mac-scheduler.cc
+cp pf-ff-mac-scheduler.h hnns-mac-scheduler.h
+# rename class dalam file
+class PfFfMacScheduler : public FfMacScheduler
+class HnnsMacScheduler : public FfMacScheduler
+
+```
