@@ -1,0 +1,53 @@
+# ============================
+# General
+# ============================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# ============================
+# Environment / virtualenv
+# ============================
+env/
+venv/
+.venv/
+
+# ============================
+# Dataset files (karena ukurannya besar)
+# ============================
+base_station/datasets/
+client_pasien/sensor/sensor_data.json
+client_pasien/vital/patient_data.hl7.json
+client_pasien/control/control_commands.json
+client_pasien/video/real_time.h264
+
+# ============================
+# Output files (hasil simulasi)
+# ============================
+base_station/output/
+
+# ============================
+# NS-3 build artifacts
+# ============================
+ns-3/build/
+ns-3/results/
+ns-3/scratch/*.pcap
+ns-3/scratch/*.xml
+ns-3/scratch/*.tr
+ns-3/scratch/*.sqlite
+*.so
+
+# ============================
+# Misc (sementara)
+# ============================
+.idea/
+.vscode/
+*.code-workspace
+# x ============================
