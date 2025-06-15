@@ -140,3 +140,168 @@ class PfFfMacScheduler : public FfMacScheduler
 class HnnsMacScheduler : public FfMacScheduler
 
 ```
+
+## Base station guide
+
+```sh
+#  setelah installasi ns-3
+cd ~/ns-3
+mkdir external
+cd external
+git clone https://github.com/nlohmann/json.git
+```
+update 
+```sh
+nano ~/ns-3/CMakeLists.txt
+# Tambahkan external include path:
+
+# Include external JSON
+include_directories(${CMAKE_SOURCE_DIR}/external/json/include)
+
+# Tambahkan scratch file spesifik
+add_executable(hnns-schedular-sim scratch/hnns-schedular-sim.cc)
+
+# Link dengan module NS-3 modern
+target_link_libraries(hnns-schedular-sim
+    ns3::core
+    ns3::internet
+    ns3::network
+    ns3::point-to-point
+    ns3::applications
+    ns3::flow-monitor
+)
+
+
+# update pada bagian 
+target_link_libraries(hnns-schedular-sim
+    ns3::core
+    ns3::internet
+    ns3::network
+    ns3::point-to-point
+    ns3::applications
+    ns3::flow-monitor
+)
+
+
+```
+
+buat kode simulasi
+```sh
+cd ~/ns-3/scratch
+nano hnns-scheduler-sim.cc
+```
+dengan isi file 
+```cpp
+#include "ns3/core-module.h"
+#include "ns3/network-module.h"
+#include "ns3/internet-module.h"
+#include "ns3/point-to-point-module.h"
+#include "ns3/applications-module.h"
+#include "ns3/flow-monitor-helper.h"
+
+#include <fstream>
+#include <nlohmann/json.hpp>
+
+using namespace ns3;
+using json = nlohmann::json;
+
+// Fungsi membaca file RB allocation hasil HNNS
+std::vector<std::vector<int>> LoadRbAllocation(const std::string& filename)
+{
+    std::ifstream file(filename);
+    json j;
+    file >> j;
+    return j["rb_allocation"].get<std::vector<std::vector<int>>>();
+}
+
+NS_LOG_COMPONENT_DEFINE ("HnnsSchedulerSimulation");
+
+int main (int argc, char *argv[])
+{
+    CommandLine cmd;
+    cmd.Parse(argc, argv);
+
+    // Load file rb_allocation.json hasil hnns_scheduler.py
+    auto rbAllocation = LoadRbAllocation("output/rb_allocation.json");
+
+    std::cout << "Loaded RB Allocation:" << std::endl;
+    for (size_t u = 0; u < rbAllocation.size(); ++u)
+    {
+        std::cout << "User " << u << ": ";
+        for (size_t rb = 0; rb < rbAllocation[u].size(); ++rb)
+            std::cout << rbAllocation[u][rb] << " ";
+        std::cout << std::endl;
+    }
+
+    // Membuat dummy topologi 3 node
+    NodeContainer nodes;
+    nodes.Create(3);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute("DataRate", StringValue("100Mbps"));
+    p2p.SetChannelAttribute("Delay", StringValue("1ms"));
+
+    NetDeviceContainer d1 = p2p.Install(nodes.Get(0), nodes.Get(1));
+    NetDeviceContainer d2 = p2p.Install(nodes.Get(1), nodes.Get(2));
+
+    InternetStackHelper stack;
+    stack.Install(nodes);
+
+    Ipv4AddressHelper address;
+    address.SetBase("10.1.1.0", "255.255.255.0");
+    address.Assign(d1);
+    address.SetBase("10.1.2.0", "255.255.255.0");
+    address.Assign(d2);
+
+    // Membuat traffic URLLC dummy
+    uint16_t portUrlLc = 5000;
+    OnOffHelper urlccApp("ns3::UdpSocketFactory",
+                         InetSocketAddress("10.1.2.2", portUrlLc));
+    urlccApp.SetAttribute("DataRate", StringValue("2Mbps"));
+    urlccApp.SetAttribute("PacketSize", UintegerValue(200));
+
+    urlccApp.Install(nodes.Get(0))->Start(Seconds(1.0));
+    urlccApp.Install(nodes.Get(0))->Stop(Seconds(10.0));
+
+    // Membuat traffic eMBB dummy
+    uint16_t portEmbb = 6000;
+    BulkSendHelper embbApp("ns3::TcpSocketFactory",
+                            InetSocketAddress("10.1.2.2", portEmbb));
+    embbApp.SetAttribute("MaxBytes", UintegerValue(0));
+
+    embbApp.Install(nodes.Get(0))->Start(Seconds(1.0));
+    embbApp.Install(nodes.Get(0))->Stop(Seconds(10.0));
+
+    // Monitoring flow untuk hasil pengujian
+    FlowMonitorHelper flowmon;
+    Ptr<FlowMonitor> monitor = flowmon.InstallAll();
+
+    Simulator::Stop(Seconds(12.0));
+    Simulator::Run();
+
+    monitor->SerializeToXmlFile("flowmon-results.xml", true, true);
+    Simulator::Destroy();
+
+    return 0;
+}
+```
+
+build ulang
+```sh
+# just in case
+rm -rf *
+#############
+cd ~/ns-3/build
+cmake ..
+cmake --build .
+```
+
+run simulasi
+```sh
+./ns3 run scratch/hnns-scheduler-sim
+```
+
+parser flowmon
+```sh
+python3 parse_flowmon.py
+```
